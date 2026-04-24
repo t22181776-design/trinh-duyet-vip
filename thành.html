@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Browser Pro - Secure Proxy</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            background: #0f172a;
+            color: #f8fafc;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .browser-chrome {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background: #1e293b;
+        }
+
+        .nav-bar {
+            background: #334155;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 50;
+        }
+
+        .address-container {
+            flex-grow: 1;
+            background: #0f172a;
+            border: 1px solid #475569;
+            border-radius: 9999px;
+            padding: 6px 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .address-container input {
+            background: transparent;
+            border: none;
+            color: white;
+            width: 100%;
+            outline: none;
+            font-size: 14px;
+        }
+
+        .warp-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #475569;
+            padding: 6px 14px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .warp-toggle.active {
+            background: #f38020;
+            box-shadow: 0 0 15px rgba(243, 128, 32, 0.4);
+        }
+
+        .content-area {
+            flex-grow: 1;
+            background: white;
+            position: relative;
+        }
+
+        #browserFrame {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .loader-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 3px;
+            background: #3b82f6;
+            width: 0;
+            z-index: 100;
+            transition: width 0.3s;
+        }
+
+        .home-screen {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #0f172a;
+            text-align: center;
+        }
+
+        .proxy-info {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-size: 13px;
+            color: #93c5fd;
+            margin-top: 20px;
+            max-width: 80%;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="browser-chrome">
+        <div class="nav-bar">
+            <div class="flex items-center gap-4 text-slate-400">
+                <button onclick="goHome()"><i class="fas fa-home"></i></button>
+                <button onclick="reload()"><i class="fas fa-redo"></i></button>
+            </div>
+
+            <div class="address-container">
+                <i id="lockIcon" class="fas fa-lock text-green-500 text-xs"></i>
+                <input type="text" id="urlInput" placeholder="Nhập từ khóa tìm kiếm hoặc URL..." onkeydown="if(event.key==='Enter') loadURL(this.value)">
+            </div>
+
+            <div id="warpBtn" class="warp-toggle" onclick="toggleWarp()">
+                <i class="fas fa-bolt"></i>
+                <span>PROXY OFF</span>
+            </div>
+        </div>
+
+        <div class="relative">
+            <div id="loaderLine" class="loader-line"></div>
+        </div>
+
+        <div id="homeScreen" class="home-screen">
+            <div class="mb-6 text-orange-500 text-6xl">
+                <i class="fas fa-globe-asia"></i>
+            </div>
+            <h1 class="text-3xl font-bold mb-2">Trình Duyệt Vượt Chặn</h1>
+            <p class="text-slate-400 mb-8">Tự động sử dụng Proxy để mở các trang web bị chặn Iframe.</p>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="loadURL('google.com')" class="bg-slate-800 p-4 rounded-lg hover:bg-slate-700 transition">
+                    <i class="fab fa-google mb-2"></i><br>Google
+                </button>
+                <button onclick="loadURL('wikipedia.org')" class="bg-slate-800 p-4 rounded-lg hover:bg-slate-700 transition">
+                    <i class="fab fa-wikipedia-w mb-2"></i><br>Wikipedia
+                </button>
+            </div>
+
+            <div class="proxy-info">
+                <i class="fas fa-shield-alt mr-2"></i>
+                Mẹo: Nếu tìm kiếm bị lỗi trắng trang, hãy bật nút <b>PROXY ON</b> ở góc trên bên phải.
+            </div>
+        </div>
+
+        <div id="frameContainer" class="content-area" style="display: none;">
+            <iframe id="browserFrame" name="browserFrame"></iframe>
+        </div>
+    </div>
+
+    <script>
+        const urlInput = document.getElementById('urlInput');
+        const frame = document.getElementById('browserFrame');
+        const homeScreen = document.getElementById('homeScreen');
+        const frameContainer = document.getElementById('frameContainer');
+        const warpBtn = document.getElementById('warpBtn');
+        const loader = document.getElementById('loaderLine');
+
+        let isProxyActive = false;
+
+        function toggleWarp() {
+            isProxyActive = !isProxyActive;
+            warpBtn.classList.toggle('active', isProxyActive);
+            warpBtn.querySelector('span').innerText = isProxyActive ? "PROXY ON" : "PROXY OFF";
+            if(urlInput.value) loadURL(urlInput.value);
+        }
+
+        function loadURL(query) {
+            if (!query) return;
+
+            let finalUrl = "";
+            
+            // Xử lý query tìm kiếm hoặc URL
+            if (!query.startsWith('http')) {
+                if (query.includes('.') && !query.includes(' ')) {
+                    finalUrl = 'https://' + query;
+                } else {
+                    // Sử dụng DuckDuckGo hoặc Bing làm máy tìm kiếm mặc định vì Google chặn nhúng khắt khe hơn
+                    finalUrl = 'https://www.bing.com/search?q=' + encodeURIComponent(query);
+                }
+            } else {
+                finalUrl = query;
+            }
+
+            // Nếu bật Proxy, sử dụng một dịch vụ trung gian để "gỡ" header chặn iframe
+            if (isProxyActive) {
+                // Sử dụng trình xem web qua proxy (ví dụ lách luật cơ bản)
+                finalUrl = "https://thingproxy.freeboard.io/fetch/" + finalUrl;
+            }
+
+            urlInput.value = query;
+            homeScreen.style.display = 'none';
+            frameContainer.style.display = 'block';
+            
+            loader.style.width = '30%';
+            frame.src = finalUrl;
+
+            frame.onload = () => {
+                loader.style.width = '100%';
+                setTimeout(() => { loader.style.width = '0%'; }, 500);
+            };
+        }
+
+        function goHome() {
+            homeScreen.style.display = 'flex';
+            frameContainer.style.display = 'none';
+            urlInput.value = '';
+            frame.src = '';
+        }
+
+        function reload() {
+            if (urlInput.value) loadURL(urlInput.value);
+        }
+    </script>
+</body>
+</html>
